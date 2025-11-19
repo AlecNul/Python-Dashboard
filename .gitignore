@@ -1,0 +1,8 @@
+# Ignore le dossier de l'environnement virtuel
+.venv/
+venv/
+env/
+
+# Ignore les fichiers compilés par Python (inutiles)
+__pycache__/
+*.pyc
