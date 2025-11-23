@@ -3,15 +3,9 @@ import streamlit as st
 
 Asset1 = Asset("AAPL")
 
-data = Asset1.history
-
-print(data)
-
 def main(Asset1:Asset):
     st.title("Beautiful Python Dashboard")
-
     ticker = st.sidebar.text_input("Ticker", value=Asset1.ticker_symbol)
-
     duration = st.sidebar.selectbox(
         "Period",
         options=["1mo", "3mo", "6mo", "1y", "2y", "5y", "max"],

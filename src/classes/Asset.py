@@ -23,12 +23,17 @@ class Asset:
 
 
     # Methods
-    def slice_history(self, start_date:str=None, end_date:str=None):
+    def slice(self, data_type:str, start_date:str=None, end_date:str=None):
         """
         Takes two dates (YYYY:MM:DD)
-        Returns the history between those dates
+        Returns the data_type between those dates (ex. returns, history...)
         """
-        sliced_df = self.history[start_date:end_date]
+        try:
+            attribute = getattr(self,data_type)
+        except AttributeError:
+            print(f"Error : {data_type} is not an attribute of Asset.")
+
+        sliced_df = attribute.loc[start_date:end_date]
         return sliced_df
 
     # Graphics
@@ -37,12 +42,10 @@ class Asset:
         Takes a period (duration:str) as parameter
         Returns a candle graph of the prices
         """
-
         offsets = {
             "1mo": 30, "3mo": 90, "6mo": 180, 
             "1y": 365, "2y": 730, "5y": 1825
         }
-
         data = self.history
         if (duration!="max"):
             # So we don't need to ask yfinance for data again
@@ -51,9 +54,8 @@ class Asset:
         else:
             # Shouldn't happen as we choose the duration in the main
             data = self.ticker.history(period=duration, auto_adjust=True)
-
+        # Graphic part
         fig = go.Figure()
-
         fig.add_trace(go.Candlestick(
             x=data.index,
             open=data['Open'],
@@ -62,7 +64,6 @@ class Asset:
             close=data['Close'],
             name=self.ticker_symbol
         ))
-
         # Dynamic title according to period
         fig.update_layout(
             title=f"{self.ticker_symbol} - Period : {duration}",
@@ -70,5 +71,4 @@ class Asset:
             template="plotly_dark",
             xaxis_rangeslider_visible=False
         )
-        
         return fig
