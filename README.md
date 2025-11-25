@@ -1,20 +1,37 @@
-# Presentation
+# Financial Analysis & Backtesting Dashboard
 
-## Python Dashboard Made by Alec REYNEN
-This dashboard will present you information about stocks (graphs, news...). 
-You'll also be able to create protfolios, and try to backtest different strategies.
+**Author:** Alec REYNEN  
+**Stack:** Python | Streamlit | Plotly | Pandas
 
-# Technical
+## Overview
 
-## Data
-The data I use comes from Yahoo Finance, and Finviz (yfinance and web scraping)
+This project is a comprehensive Financial Dashboard, which will be hosted on a AWS (EC2), it allows users to visualize market data, analyze asset risk profiles, and backtest various investment strategies.
 
-## Code structure
-There is both Asset and Portfolio classes.
-And there is
+### Key Features
+* **Market Data:** Real-time retrieval of OHLCV data via Yahoo Finance (`yfinance`) and news via Finviz scraping.
+* **Interactive Visualization:** Candle graph.
+* **Risk Metrics:**
+    * Value at Risk (VaR) & Expected Shortfall (ES)
+    * Sharpe & Sortino Ratios
+    * Maximum Drawdown and Annualized Volatility
+* **Backtesting Engine:** An Object-Oriented engine to simulate strategies (e.g., Buy and Hold) and compare their performance against benchmarks.
 
-## Setup to modify
-1. Create a virtual environment (python -m venv .venv)
-2. Activate it (.venv\Scripts\activate for Windows)
-3. In Python-Dashboard folder : pip install -r requirements.txt
+---
+
+## Technical Architecture
+
+The project follows a modular **Object-Oriented Programming (OOP)** structure to ensure scalability and maintainability.
+
+### Data Sources
+* **yfinance:** For historical price data and treasury rates (Risk-Free Rate).
+* **Web Scraping (Finviz):** For fundamental ratios and news sentiment.
+
+### Code Structure
+The application is divided into logical modules within the `src/` directory:
+
+* `classes/`: Contains the core logic.
+    * **`Asset` class:** Handles data loading, slicing, and risk metric calculations.
+    * **`Strategy` class:** Parent class for backtesting logic (BuyHold, MovingAverages, etc.).
+* `ui/`: Manages the Streamlit components (Tabs, Sidebar, Charts).
+* `data_loader/`: Utility scripts for fetching and caching external data.
 
