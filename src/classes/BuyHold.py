@@ -47,22 +47,43 @@ class BuyHold:
         max_drawdown = drawdown.min()
         return drawdown, max_drawdown
 
+    # Note : For the annualized volatility we always assume that vola at t and at t-1 are independent, however it's not true.
+    # Implementing GARCH model could be a good idea for better estimates.
+    # https://www.investopedia.com/terms/g/garch.asp
+    # https://cdn.prod.website-files.com/688125a82bfc6e536cc30914/689432dd1a3c31ee70d9398c_GARCH.pdf 
+
     def annualized_volatility(self):
         """
         Returns the annualized volatility
         """
         vol = self.returns.std() * (252 ** 0.5)
         return vol
+    
+    def downside_volatility(self):
+        """
+        Returns the annualized downside volatility
+        """
+        negative_returns = self.log_returns[self.returns < 0]
+        downside_vol = negative_returns.std() * (252 ** 0.5)
+        return downside_vol
 
     def sharpe(self, risk_free_rate:float=0.02):
         """
         Takes the risk free rate as parameter (default 2% ?)
         Returns the Sharpe ratio
         """
-        returns = self.asset.returns.loc[self.start_date:self.end_date]
-        excess_return = returns.mean()*252 - (risk_free_rate)
+        excess_return = self.returns.mean()*252 - (risk_free_rate)
         sharpe_ratio = excess_return / self.annualized_volatility()
         return sharpe_ratio
+    
+    def sortino(self, risk_free_rate:float=0.02):
+        """
+        Takes the risk free rate as parameter (default 2% ?)
+        Returns the Sortino ratio
+        """
+        excess_return = self.returns.mean()*252 - (risk_free_rate)
+        sortino_ratio = excess_return / self.downside_volatility()
+        return sortino_ratio
     
     def historical_VaR(self, confidence_level:float=0.95):
         """
