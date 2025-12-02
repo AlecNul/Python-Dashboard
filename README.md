@@ -1,6 +1,6 @@
 # Financial Analysis & Backtesting Dashboard
 
-**Author:** Alec REYNEN  
+**Author:** Alec REYNEN and Thibault PELOU
 **Stack:** Python | Streamlit | Plotly | Pandas
 
 ## Overview
