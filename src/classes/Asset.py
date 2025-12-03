@@ -72,7 +72,9 @@ class Asset:
         Takes a window size as parameter (default 20 days)
         Returns the rolling standard deviation of the prices
         """
-        rolling_std = self.log_returns.rolling(window=window).std().rename(columns={'Price': 'Std'})
+        # Prefere log_returns bc it "scales" well data, but we get a Series
+        rolling_std_series = self.log_returns.rolling(window=window).std() 
+        rolling_std = rolling_std_series.to_frame(name='Std') # So we transform it so it works like rolling_mean
         return rolling_std
 
     # Graphics
@@ -141,7 +143,7 @@ class Asset:
             mode='lines',
             name=f'20-Day Rolling Mean'))
         return fig
-    
+
     def add_rolling_std(self, fig, duration:str="max", w:int=20):
         """
         Adds rolling standard deviation to an existing figure
@@ -153,5 +155,22 @@ class Asset:
             x=data.index,
             y=data['Std'],
             mode='lines',
-            name=f'20-Day Rolling Std'))
+            name=f'20-Day Rolling Std',
+            yaxis='y2'))
+        
+        # Need to update axis else it's uninterpretable
+        fig.update_layout(
+            yaxis=dict(
+                title="Price ($)",
+                side="left"
+            ),
+            yaxis2=dict(
+                title=f"20-Day Rolling Std",
+                anchor="x",
+                overlaying="y",
+                tickformat=".1%", # putting in percentage so it's easier to read
+                side="right"
+            )
+        )
+
         return fig
