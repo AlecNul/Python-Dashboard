@@ -150,3 +150,34 @@ def render_strategies():
 def render_pricing():
     st.title("Option Pricing")
     st.write("WIP : Need to use C++ files.")
+
+
+#############################
+# QUANT B - PORTFOLIO
+#############################
+
+from classes.portfolio import Portfolio
+
+def render_portfolio():
+    st.title("Portfolio (Quant B)")
+
+    # Simple demo portfolio
+    p = Portfolio("Demo Portfolio")
+    p.add_asset("AAPL", 0.5)
+    p.add_asset("MSFT", 0.5)
+
+    if not p.check_weights():
+        st.error("Portfolio weights must sum to 1.")
+        return
+
+    st.subheader("Portfolio Volatility")
+    st.write(f"{p.portfolio_volatility():.2%}")
+
+    st.subheader("Diversification Ratio")
+    st.write(f"{p.diversification_ratio():.2f}")
+
+    st.subheader("Correlation Matrix")
+    st.dataframe(p.correlation_matrix())
+
+    st.subheader("Portfolio Value")
+    st.line_chart(p.portfolio_value())
