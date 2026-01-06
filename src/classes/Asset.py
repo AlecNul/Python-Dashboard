@@ -27,21 +27,6 @@ class Asset:
 
 
     # Methods
-
-    # Will be useful for strategies
-    def slice(self, data_type:str, start_date:str=None, end_date:str=None):
-        """
-        Takes two dates (YYYY:MM:DD)
-        Returns the data_type between those dates (ex. returns, history...)
-        """
-        try:
-            attribute = getattr(self,data_type)
-        except AttributeError:
-            print(f"Error : {data_type} is not an attribute of Asset.")
-
-        sliced_df = attribute.loc[start_date:end_date]
-        return sliced_df
-    
     def handle_duration(self, data, duration:str):
         """
         Takes a period (duration:str) as parameter
@@ -59,12 +44,15 @@ class Asset:
             # old : data = self.ticker.history(period=duration, auto_adjust=True)[['Close']].rename(columns={'Close': 'Price'})
         return res
 
-    def rolling_mean(self, window:int=20):
+    def rolling_mean(self, window:int=20, start_date:str=None, end_date:str=None):
         """
         Takes a window size as parameter (default 20 days)
         Returns the rolling mean of the prices
         """
-        rolling_mean = self.prices.rolling(window=window).mean().rename(columns={'Price': 'Mean'})
+        if(start_date==None or end_date==None):
+            rolling_mean = self.prices.rolling(window).mean().rename(columns={'Price': 'Mean'})
+        else:
+            rolling_mean = self.prices[start_date:end_date].rolling(window).mean().rename(columns={'Price': 'Mean'})
         return rolling_mean
 
     def rolling_std(self, window:int=20):
