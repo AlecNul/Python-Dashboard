@@ -1,8 +1,11 @@
-# Ignore le dossier de l'environnement virtuel
+# Virtual environment
 .venv/
 venv/
 env/
 
-# Ignore les fichiers compilés par Python (inutiles)
+# Data files
+src/data/*.csv
+
+# Python cache
 __pycache__/
 *.pyc
