@@ -27,13 +27,17 @@ class Asset:
         except Exception as e:
             print(f"Error while creating the Asset : {e}")
 
-    def rolling_mean(self, window:int=20):
+    def rolling_mean(self, window:int=20, start_date=None, end_date=None):
         """
         Takes a window size as parameter (default 20 days)
         Returns the rolling mean of the prices
         """
-        rolling_mean = self.prices.rolling(window).mean().rename(columns={'Price': 'Mean'})
-        return rolling_mean
+        res = self.prices.rolling(window).mean().rename(columns={'Price': 'Mean'})
+        if start_date:
+            res = res[res.index >= start_date]
+        if end_date:
+            res = res[res.index <= end_date]
+        return res
 
     def rolling_std(self, window:int=20):
         """
