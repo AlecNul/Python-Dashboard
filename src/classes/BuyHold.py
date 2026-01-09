@@ -41,16 +41,12 @@ class BuyHold:
     def update(self):
         self.end_date=
     '''
-    # Methods (Metrics)
-    def pnl(self):
+    # Methods
+    def get_equity_curve(self):
         """
-        Returns the PnL (value and pct)
+        Returns the equity curve
         """
-        # In case start or end date are not trading days
-        end_price = self.prices.iloc[-1]
-        start_price = self.prices.iloc[0]
-        pct = (end_price-start_price) / start_price
-        return pct*self.capital, pct
+        return self.prices['Price'] * self.capital / self.prices['Price'].iloc[0]
 
     # Graph
     def capital_graph(self):
@@ -85,12 +81,26 @@ class BuyHold:
         return fig
 
     # Metrics
+
+    def pnl(self):
+        """
+        Returns the PnL (value and pct)
+        """
+        equity = self.get_equity_curve()
+        start_val = equity.iloc[0]
+        end_val = equity.iloc[-1]
+
+        pnl_val = end_val - start_val
+        pnl_pct = (end_val - start_val) / start_val
+        return pnl_val, pnl_pct
+
     def drawdown(self):
         """
         Returns the drawdown series and the max drawdown (tuple)
         """
-        cummax = self.prices.cummax()
-        drawdown = (self.prices - cummax) / cummax
+        equity = self.get_equity_curve()
+        cummax = equity.cummax()
+        drawdown = (equity - cummax) / cummax
         max_drawdown = drawdown.min()
         return drawdown, max_drawdown
 
@@ -103,14 +113,18 @@ class BuyHold:
         """
         Returns the annualized volatility
         """
-        vol = self.returns.std() * (252 ** 0.5)
-        return vol
+        equity = self.get_equity_curve()
+        returns = equity.pct_change().dropna()
+        return returns.std() * (252 ** 0.5)
     
     def downside_volatility(self):
         """
         Returns the annualized downside volatility
         """
-        negative_returns = self.log_returns[self.log_returns < 0]
+        equity = self.get_equity_curve()
+        returns = equity.pct_change().dropna()
+        
+        negative_returns = returns[returns < 0]
         downside_vol = negative_returns.std() * (252 ** 0.5)
         return downside_vol
 
@@ -119,39 +133,54 @@ class BuyHold:
         Takes the risk free rate as parameter (default 2% ?)
         Returns the Sharpe ratio
         """
-        excess_return = self.returns.mean()*252 - (risk_free_rate)
-        sharpe_ratio = excess_return / self.annualized_volatility()
-        return sharpe_ratio
+        equity = self.get_equity_curve()
+        returns = equity.pct_change().dropna()
+
+        excess_return = returns.mean()*252 - (risk_free_rate)
+        vol = self.annualized_volatility()
+
+        if vol == 0: return 0.0
+        return excess_return / vol
     
     def sortino(self, risk_free_rate:float=0.02):
         """
         Takes the risk free rate as parameter (default 2% ?)
         Returns the Sortino ratio
         """
-        excess_return = self.returns.mean()*252 - (risk_free_rate)
-        sortino_ratio = excess_return / self.downside_volatility()
-        return sortino_ratio
+        equity = self.get_equity_curve()
+        returns = equity.pct_change().dropna()
+        
+        excess_return = returns.mean()*252 - (risk_free_rate)
+        down_vol = self.downside_volatility()
+        
+        if down_vol == 0: return 0.0
+        return excess_return / down_vol
     
     def historical_VaR(self, confidence_level:float=0.95):
         """
         Takes the confidence level as parameter (default 95%)
         Returns the Value at Risk (for all the period between end and start date)
         """
-        historical_returns = self.asset.returns.loc[:self.start_date]
-        sorted_returns = historical_returns.sort_values()
-        VaR = np.percentile(sorted_returns, (1 - confidence_level) * 100)
-        T = len(self.returns)
-        return -VaR*(T**0.5) 
+        equity = self.get_equity_curve()
+        returns = equity.pct_change().dropna()
+        
+        if returns.empty: return 0.0
+
+        VaR = np.percentile(returns, (1 - confidence_level) * 100)
+        # T = len(self.returns) will actually use daily VaR so no vaR*(T**0.5)
+        return VaR
 
     def historical_ES(self, confidence_level:float=0.95):
         """
         Takes the confidence level as parameter (default 95%)
         Returns the Expected Shortfall (for all the period between end and start date)
         """
-        historical_returns = self.asset.returns.loc[:self.start_date]
-        sorted_returns = historical_returns.sort_values()
-        VaR_threshold = np.percentile(sorted_returns, (1 - confidence_level) * 100)
+        equity = self.get_equity_curve()
+        returns = equity.pct_change().dropna()
         
-        ES = sorted_returns[sorted_returns <= VaR_threshold].mean()
-        T = len(self.returns)
-        return -ES*(T**0.5)
+        if returns.empty: return 0.0
+
+        VaR_threshold = np.percentile(returns, (1 - confidence_level) * 100)
+        ES = returns[returns <= VaR_threshold].mean()
+        # T = len(self.returns) same
+        return ES
