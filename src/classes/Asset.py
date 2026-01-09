@@ -8,51 +8,31 @@ class Asset:
     A personalized class based on the Ticker class of yfinance
     """
     # Constructor
-    def __init__(self, ticker_symbol:str):
+    def __init__(self, ticker_symbol:str, start_date:str=None, end_date:str=None):
         self.ticker_symbol = ticker_symbol
+        self.start_date = start_date
+        self.end_date = end_date
+        
         try:
             self.ticker = yf.Ticker(ticker_symbol)
-            self.history = self.ticker.history(period="max", auto_adjust=True)
+            if start_date and end_date:
+                self.history = self.ticker.history(start=start_date, end=end_date, auto_adjust=True)
+            else:
+                self.history = self.ticker.history(period="max", auto_adjust=True)
 
             self.prices = self.history[['Close']].rename(columns={'Close': 'Price'})
             self.returns = self.prices['Price'].pct_change().dropna()
             self.log_returns = np.log( self.prices['Price'] / self.prices['Price'].shift(1) ).dropna()
-            self.offsets = {
-            "1mo": 30, "3mo": 90, "6mo": 180, 
-            "1y": 365, "2y": 730, "5y": 1825
-        }
 
         except Exception as e:
             print(f"Error while creating the Asset : {e}")
 
-
-    # Methods
-    def handle_duration(self, data, duration:str):
-        """
-        Takes a period (duration:str) as parameter
-        Returns the data sliced according to the duration
-        """
-        if (duration!="max"):
-            # So we don't need to ask yfinance for data again
-            today = data.index.max()
-            res = data.loc[today-pd.Timedelta(days=self.offsets[duration]):today]
-        elif (duration=="max"):
-            res = data  
-        else: # Ask yfinance again but shouldn't happen as we choose the duration in the ui
-            raise ValueError("Duration must be 'max' or a valid key in offsets.")
-            # old : data = self.ticker.history(period=duration, auto_adjust=True)
-            # old : data = self.ticker.history(period=duration, auto_adjust=True)[['Close']].rename(columns={'Close': 'Price'})
-        return res
-
-    def rolling_mean(self, window:int=20, start_date:str=None, end_date:str=None):
+    def rolling_mean(self, window:int=20):
         """
         Takes a window size as parameter (default 20 days)
         Returns the rolling mean of the prices
         """
-        if(start_date==None or end_date==None):
-            rolling_mean = self.prices.rolling(window).mean().rename(columns={'Price': 'Mean'})
-        else:
-            rolling_mean = self.prices[start_date:end_date].rolling(window).mean().rename(columns={'Price': 'Mean'})
+        rolling_mean = self.prices.rolling(window).mean().rename(columns={'Price': 'Mean'})
         return rolling_mean
 
     def rolling_std(self, window:int=20):
@@ -60,18 +40,43 @@ class Asset:
         Takes a window size as parameter (default 20 days)
         Returns the rolling standard deviation of the prices
         """
-        # Prefere log_returns bc it "scales" well data, but we get a Series
         rolling_std_series = self.log_returns.rolling(window=window).std() 
-        rolling_std = rolling_std_series.to_frame(name='Std') # So we transform it so it works like rolling_mean
+        rolling_std = rolling_std_series.to_frame(name='Std') 
         return rolling_std
+        return rolling_std
+    
+    # I'll try to do some EVT
+    def get_hill_estimator(self):
+        """
+        Returns the estimated ksi using the Hill estimator
+        """
+        # I'll focus on extreme losses.
+        losses = -self.returns[self.returns < 0].dropna()
+        if len(losses) < 10:
+            return pd.Series(dtype='float64')
+        sorted_losses = np.sort(losses.values)[::-1]
+
+        # Then, for the k(n), we'll try different values, from 2 to 20% of the total count
+        hill_values = []
+        max_k = int(len(sorted_losses) * 0.2)
+        k_values = range(2, max_k)
+
+        for k in k_values:
+            selection = sorted_losses[:k]
+            threshold = sorted_losses[k-1]
+            
+            log_diff = np.log(selection) - np.log(threshold)
+            ksi = np.mean(log_diff) # The sum and division by k is here
+            hill_values.append(ksi)
+
+        return pd.Series(data=hill_values, index=k_values)
 
     # Graphics
-    def candle_graph(self, duration:str="max"):
+    def candle_graph(self):
         """
-        Takes a period (duration:str) as parameter
         Returns a candle graph of the prices
         """
-        data = self.handle_duration(self.history[['Open','High','Low','Close']], duration)
+        data = self.history[['Open','High','Low','Close']]
 
         fig = go.Figure()
         fig.add_trace(
@@ -84,20 +89,24 @@ class Asset:
                 name=self.ticker_symbol
             )
         )
-        # Dynamic title according to period
+        
+        title_text = f"{self.ticker_symbol}"
+        if self.start_date and self.end_date:
+            title_text += f" ({self.start_date} - {self.end_date})"
+
         fig.update_layout(
-            title=f"{self.ticker_symbol} - Period : {duration}",
+            title=title_text,
             yaxis_title="Price ($)",
             template="plotly_dark",
             xaxis_rangeslider_visible=False
         )
         return fig
 
-    def price_graph(self, duration:str="max"):
+    def price_graph(self):
         """
         Returns a line graph of the prices
         """
-        data = self.handle_duration(self.prices, duration)
+        data = self.prices
 
         fig = go.Figure()
         fig.add_trace(
@@ -108,8 +117,13 @@ class Asset:
                 name=self.ticker_symbol
             )
         )
+        
+        title_text = f"{self.ticker_symbol}"
+        if self.start_date and self.end_date:
+            title_text += f" ({self.start_date} - {self.end_date})"
+
         fig.update_layout(
-            title=f"{self.ticker_symbol} - Period : {duration}",
+            title=title_text,
             yaxis_title="Price ($)",
             template="plotly_dark",
             xaxis_rangeslider_visible=False
@@ -118,32 +132,30 @@ class Asset:
 
     # Could merge add_rolling_mean and add_rolling_std into one method with an argument but for now it's ok
 
-    def add_rolling_mean(self, fig, duration:str="max", w:int=20):
+    def add_rolling_mean(self, fig, w:int=20):
         """
         Adds rolling mean to an existing figure
         """
         rolling_mean = self.rolling_mean(window=w)
-        data = self.handle_duration(rolling_mean, duration)
-
+        
         fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data['Mean'],
+            x=rolling_mean.index,
+            y=rolling_mean['Mean'],
             mode='lines',
-            name=f'20-Day Rolling Mean'))
+            name=f'{w}-Day Rolling Mean'))
         return fig
 
-    def add_rolling_std(self, fig, duration:str="max", w:int=20):
+    def add_rolling_std(self, fig, w:int=20):
         """
         Adds rolling standard deviation to an existing figure
         """
         rolling_std = self.rolling_std(window=w)
-        data = self.handle_duration(rolling_std, duration)
 
         fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data['Std'],
+            x=rolling_std.index,
+            y=rolling_std['Std'],
             mode='lines',
-            name=f'20-Day Rolling Std',
+            name=f'{w}-Day Rolling Std',
             yaxis='y2'))
         
         # Need to update axis else it's uninterpretable
@@ -153,10 +165,10 @@ class Asset:
                 side="left"
             ),
             yaxis2=dict(
-                title=f"20-Day Rolling Std",
+                title=f"{w}-Day Rolling Std",
                 anchor="x",
                 overlaying="y",
-                tickformat=".1%", # putting in percentage so it's easier to read
+                tickformat=".1%", 
                 side="right"
             )
         )
