@@ -34,39 +34,81 @@ def render_home():
 
 def render_stocks():
     st.title("Stocks Analysis")
-    st.write("Graphs and metrics here.")
+    st.write("Analyze asset price and risk metrics (EVT).")
 
-# Choosing the ticker
-    ticker_input = st.text_input(
-        label="Type a ticker",
-        placeholder="Ex: NVDA, TSLA, BTC-USD..."
-    ).upper()
+    # Input
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        ticker_input = st.text_input(
+            label="Ticker Symbol",
+            value="SPY",
+            placeholder="Ex: NVDA, TSLA, BTC-USD..."
+        ).upper()
+    
+    with col2:
+        # Let's choose 1y ago as a default start
+        default_start = datetime.date.today() - datetime.timedelta(days=365)
+        start_date = st.date_input("Start Date", value=default_start)
+        
+    with col3:
+        end_date = st.date_input("End Date", value=datetime.date.today())
 
-# Showing candle graph
-    if ticker_input:
-        my_asset = Asset(ticker_input)
+    my_asset = Asset(ticker_input, start_date=start_date, end_date=end_date)
 
-        if my_asset.history.empty:
-            st.error(f"No data found for this ticker : '{ticker_input}'.")
-        else:
-            graph_type = st.radio("Graph Type", ["Candlestick", "Line Price"], horizontal=True)
-            
-            opt_col1, opt_col2 = st.columns(2)
-            show_mean = opt_col1.checkbox("Add Rolling Mean (20d)")
-            show_std = opt_col2.checkbox("Add Rolling Volatility (20d)")
+    if my_asset.history.empty:
+        st.error(f"No data found for '{ticker_input}' on these dates.")
+        return
 
-            # Handle graph type
-            if graph_type == "Candlestick":
-                fig = my_asset.candle_graph()
-            else:
-                fig = my_asset.price_graph()
-            # Handle rolling mean / std to add
-            if show_mean:
-                fig = my_asset.add_rolling_mean(fig, w=20)
-            if show_std:
-                fig = my_asset.add_rolling_std(fig, w=20)
+    # Graphs
+    graph_type = st.radio("Graph Type", ["Candlestick", "Line Price"], horizontal=True)
+        
+    opt_col1, opt_col2 = st.columns(2)
+    show_mean = opt_col1.checkbox("Add Rolling Mean")
+    show_std = opt_col2.checkbox("Add Rolling Volatility")
 
-            st.plotly_chart(fig, use_container_width=True)
+    if graph_type == "Candlestick":
+        fig = my_asset.candle_graph()
+    else:
+        fig = my_asset.price_graph()
+        
+    if show_mean:
+        window_mean = opt_col1.number_input("Choose mean window", value=20, min_value=2)
+        fig = my_asset.add_rolling_mean(fig, w=window_mean)
+    if show_std:
+        window_std = opt_col2.number_input("Choose volatility window", value=20, min_value=2)
+        fig = my_asset.add_rolling_std(fig, w=window_std)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # EVT
+    st.divider()
+    st.subheader("Extreme Value Analysis (Hill Plot)")
+
+    hill_series = my_asset.get_hill_estimator()
+
+    if hill_series.empty:
+        st.warning("Not enough loss data to compute the Hill estimator.")
+    else:
+        # Graph
+        fig_hill = go.Figure()
+        
+        fig_hill.add_trace(go.Scatter(
+            x=hill_series.index,
+            y=hill_series.values,
+            mode='lines',
+            name='Hill Estimator',
+            line=dict(color='#FFA500') 
+        ))
+        fig_hill.update_layout(
+            title=f"Hill Plot: {my_asset.ticker_symbol}",
+            xaxis_title="Number of Extremes (k)",
+            yaxis_title="Tail Index Estimation (ksi)",
+            template="plotly_dark",
+            hovermode="x unified"
+        )
+        
+        st.plotly_chart(fig_hill, use_container_width=True)
 
 def render_strategies():
     
@@ -156,7 +198,6 @@ def render_strategies():
                         name=name, 
                     ))
 
-                # Ligne du capital initial
                 fig.add_hline(y=active_strategies[0][1].capital, line_dash="dash", line_color="gray", annotation_text="Initial Capital")
                 
                 fig.update_layout(
