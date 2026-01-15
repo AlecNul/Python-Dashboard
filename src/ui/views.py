@@ -243,23 +243,119 @@ from classes.portfolio import Portfolio
 def render_portfolio():
     st.title("Portfolio (Quant B)")
 
-    # Simple demo portfolio
-    p = Portfolio("Demo Portfolio")
-    p.add_asset("AAPL", 0.5)
-    p.add_asset("MSFT", 0.5)
+    # -----------------------------
+    # 1. Asset selection (>= 3)
+    # -----------------------------
+    available_assets = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META"]
+
+    tickers = st.multiselect(
+        "Select at least 3 assets",
+        available_assets,
+        default=["AAPL", "MSFT", "GOOGL"]
+    )
+
+    if len(tickers) < 3:
+        st.warning("Please select at least 3 assets.")
+        return
+
+    # -----------------------------
+    # 2. Weights selection
+    # -----------------------------
+    st.subheader("Portfolio Weights")
+
+    raw_weights = {}
+    for t in tickers:
+        raw_weights[t] = st.slider(
+            f"Weight {t}",
+            min_value=0.0,
+            max_value=1.0,
+            value=1 / len(tickers),
+            step=0.01
+        )
+
+    total_weight = sum(raw_weights.values())
+
+    if total_weight == 0:
+        st.error("Total weight cannot be zero.")
+        return
+
+    # Normalize weights automatically
+    weights = {t: w / total_weight for t, w in raw_weights.items()}
+
+    st.caption(
+        "Weights are automatically normalized to sum to 1 "
+        f"(current sum: {sum(weights.values()):.2f})"
+    )
+
+    # -----------------------------
+    # 3. Portfolio construction
+    # -----------------------------
+    p = Portfolio("User Portfolio")
+
+    for t in tickers:
+        p.add_asset(t, weights[t])
 
     if not p.check_weights():
         st.error("Portfolio weights must sum to 1.")
         return
 
-    st.subheader("Portfolio Volatility")
-    st.write(f"{p.portfolio_volatility():.2%}")
+    # -----------------------------
+    # 4. Main chart: assets + portfolio
+    # -----------------------------
+    st.subheader("Assets vs Portfolio Performance")
 
-    st.subheader("Diversification Ratio")
-    st.write(f"{p.diversification_ratio():.2f}")
+    fig = go.Figure()
+
+    for t, asset in p.assets.items():
+        price_series = asset.prices.squeeze()
+        fig.add_trace(
+            go.Scatter(
+                x=price_series.index,
+                y=price_series / price_series.iloc[0],
+                name=f"{t} (normalized)",
+                line=dict(dash="dot")
+            )
+        )
+
+    portfolio_value = p.portfolio_value()
+    fig.add_trace(
+        go.Scatter(
+            x=portfolio_value.index,
+            y=portfolio_value / portfolio_value.iloc[0],
+            name="Portfolio",
+            line=dict(width=3)
+        )
+    )
+
+    fig.update_layout(
+        title="Normalized Asset Prices vs Portfolio Value",
+        yaxis_title="Normalized Value",
+        xaxis_title="Date",
+        template="plotly_dark",
+        hovermode="x unified"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # -----------------------------
+    # 5. Portfolio metrics
+    # -----------------------------
+    st.divider()
+    st.subheader("Portfolio Metrics")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric(
+            "Portfolio Volatility (annualized)",
+            f"{p.portfolio_volatility():.2%}"
+        )
+
+    with col2:
+        st.metric(
+            "Diversification Ratio",
+            f"{p.diversification_ratio():.2f}"
+        )
 
     st.subheader("Correlation Matrix")
     st.dataframe(p.correlation_matrix())
-
-    st.subheader("Portfolio Value")
-    st.line_chart(p.portfolio_value())
